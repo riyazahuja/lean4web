@@ -33,6 +33,7 @@
     "ip-anonymize": "^0.1.0",
     "lean4monaco": "^1.0.24",
     "lz-string": "^1.5.0",
+    "marked": "^15.0.7",
     "memfs": "^4.11.1",
     "nocache": "^4.0.0",
     "node": "^22.6.0",
