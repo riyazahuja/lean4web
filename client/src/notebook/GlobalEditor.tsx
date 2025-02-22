@@ -1,68 +1,89 @@
-//@ts-ignore
-import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef } from 'react';
+// GlobalEditor.tsx
+import React, {
+  forwardRef,
+  useImperativeHandle,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import * as monaco from 'monaco-editor';
-import { LeanMonaco, LeanMonacoEditor, LeanMonacoOptions } from 'lean4monaco';
+import {
+  LeanMonaco,
+  LeanMonacoEditor,
+  LeanMonacoOptions,
+} from 'lean4monaco';
 
-export interface GlobalEditorRef {
-  setContent: (content: string) => void;
-  getContent: () => string;
-  focus: () => void;
+export interface GlobalEditorHandle {
+  revealRange: (startLine: number, endLine: number) => void;
+  getFullContent: () => string;
 }
 
 interface GlobalEditorProps {
+  fullContent: string;
   project: string;
-  initialValue: string;
-  onChange: (newValue: string) => void;
+  onContentChange: (newContent: string) => void;
+  onBlur: () => void;
 }
 
-const GlobalEditor = forwardRef<GlobalEditorRef, GlobalEditorProps>(
-  ({ project, initialValue, onChange }, ref) => {
-    const containerRef = useRef<HTMLDivElement>(null);
+const GlobalEditor = forwardRef<GlobalEditorHandle, GlobalEditorProps>(
+  ({ fullContent, project, onContentChange, onBlur }, ref) => {
+    const editorDivRef = useRef<HTMLDivElement>(null);
     const infoviewRef = useRef<HTMLDivElement>(null);
-    //@ts-ignore
+    const [editorInstance, setEditorInstance] = useState<
+      monaco.editor.IStandaloneCodeEditor | null
+    >(null);
     const [leanMonaco, setLeanMonaco] = useState<LeanMonaco | null>(null);
-    const [editorInstance, setEditorInstance] = useState<monaco.editor.IStandaloneCodeEditor | null>(null);
 
     const options: LeanMonacoOptions = {
       websocket: {
         url:
-          (window.location.protocol === "https:" ? "wss://" : "ws://") +
+          (window.location.protocol === 'https:' ? 'wss://' : 'ws://') +
           window.location.host +
-          "/websocket/" +
-          project
+          '/websocket/' +
+          project,
       },
-      htmlElement: containerRef.current ?? undefined,
+      htmlElement: editorDivRef.current ?? undefined,
       vscode: {
-        "workbench.colorTheme": "Visual Studio Light",
-        "editor.tabSize": 2,
-        "editor.lightbulb.enabled": "on",
-        "editor.wordWrap": "on",
-        "editor.wrappingStrategy": "advanced",
-        "editor.semanticHighlighting.enabled": true,
-        "editor.acceptSuggestionOnEnter": "on",
-        "lean4.input.eagerReplacementEnabled": true,
-        "lean4.input.leader": "\\"
-      }
+        'workbench.colorTheme': 'Visual Studio Light',
+        'editor.tabSize': 2,
+        'editor.lightbulb.enabled': 'on',
+        'editor.wordWrap': 'on',
+        'editor.wrappingStrategy': 'advanced',
+        'editor.semanticHighlighting.enabled': true,
+        'editor.acceptSuggestionOnEnter': 'on',
+        'lean4.input.eagerReplacementEnabled': true,
+        'lean4.input.leader': '\\',
+      },
     };
 
     useEffect(() => {
-      if (!containerRef.current) return;
+      if (!editorDivRef.current) return;
+
       const _leanMonaco = new LeanMonaco();
       const leanMonacoEditor = new LeanMonacoEditor();
 
-      // Set the infoview container.
+      // Set the infoview container so it appears to the right.
       _leanMonaco.setInfoviewElement(infoviewRef.current!);
 
       (async () => {
         await _leanMonaco.start(options);
-        // Note: Use the initial value only on the first mount.
-        await leanMonacoEditor.start(containerRef.current!, `/project/${project}.lean`, initialValue);
+        // Initialize the editor with the full file content.
+        await leanMonacoEditor.start(
+          editorDivRef.current!,
+          `/project/${project}.lean`,
+          fullContent
+        );
         setEditorInstance(leanMonacoEditor.editor);
         setLeanMonaco(_leanMonaco);
 
         leanMonacoEditor.editor?.onDidChangeModelContent(() => {
-          const currentCode = leanMonacoEditor.editor?.getModel()?.getValue() ?? '';
-          onChange(currentCode);
+          const newContent =
+            leanMonacoEditor.editor?.getModel()?.getValue() ?? '';
+          onContentChange(newContent);
+        });
+
+        leanMonacoEditor.editor?.onDidBlurEditorWidget(() => {
+          onBlur();
         });
       })();
 
@@ -70,30 +91,47 @@ const GlobalEditor = forwardRef<GlobalEditorRef, GlobalEditorProps>(
         leanMonacoEditor.dispose();
         _leanMonaco.dispose();
       };
-    }, [project]); // Run once on mount or when project changes.
+    }, [editorDivRef, project]); // initialize only once per mount
 
-    // Expose imperative methods.
     useImperativeHandle(ref, () => ({
-      setContent: (content: string) => {
-        editorInstance?.getModel()?.setValue(content);
+      revealRange: (startLine: number, endLine: number) => {
+        if (editorInstance) {
+          editorInstance.revealLinesInCenter(startLine, endLine);
+          editorInstance.setSelection(
+            new monaco.Range(startLine, 1, endLine, 1)
+          );
+          editorInstance.focus();
+        }
       },
-      getContent: () => {
-        return editorInstance?.getModel()?.getValue() || '';
+      getFullContent: () => {
+        return editorInstance?.getModel()?.getValue() ?? '';
       },
-      focus: () => {
-        editorInstance?.focus();
-      }
-    }), [editorInstance]);
+    }));
 
     return (
-      // Render the editor in a container that is positioned absolutely,
-      // but initially hidden. You can then control its position via CSS or a portal.
-      <div id="global-editor-wrapper" style={{ position: 'absolute', top: 0, left: 0, width: '100%', display: 'none' }}>
-        <div ref={containerRef} style={{ width: '100%', height: '300px' }} />
-        <div ref={infoviewRef} style={{ width: '40%', height: '300px', borderLeft: '1px solid #ccc', padding: '10px', backgroundColor: '#fafafa' }} />
+      <div
+        className="global-editor"
+        style={{ display: 'flex', flexDirection: 'row', height: '300px' }}
+      >
+        <div
+          ref={editorDivRef}
+          className="codeview"
+          style={{ flex: 1, height: '100%' }}
+        />
+        <div
+          ref={infoviewRef}
+          className="infoview"
+          style={{
+            width: '40%',
+            height: '100%',
+            borderLeft: '1px solid #ccc',
+            padding: '10px',
+            backgroundColor: '#fafafa',
+          }}
+        />
       </div>
     );
   }
 );
 
-export default GlobalEditor;
+export default React.memo(GlobalEditor);

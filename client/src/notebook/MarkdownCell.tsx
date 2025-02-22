@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react'
-import {marked} from 'marked'
-import { Cell } from './NotebookTypes'
+// MarkdownCell.tsx
+import React, { useState, useEffect, useRef } from 'react';
+import { marked } from 'marked';
+import { Cell } from './NotebookTypes';
 
 interface MarkdownCellProps {
   cell: Cell;
@@ -8,35 +9,37 @@ interface MarkdownCellProps {
 }
 
 const MarkdownCell: React.FC<MarkdownCellProps> = ({ cell, updateCell }) => {
-  const [editing, setEditing] = useState<boolean>(true)
-  const [localContent, setLocalContent] = useState<string>(cell.content)
-  const [renderedContent, setRenderedContent] = useState<string>('')
-  const containerRef = useRef<HTMLDivElement>(null)
+  const [editing, setEditing] = useState<boolean>(true);
+  const [localContent, setLocalContent] = useState<string>(cell.content);
+  const [renderedContent, setRenderedContent] = useState<string>('');
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Update localContent when parent content changes (if not editing)
   useEffect(() => {
     if (!editing) {
-      setLocalContent(cell.content)
+      setLocalContent(cell.content);
     }
-  }, [cell.content, editing])
+  }, [cell.content, editing]);
 
-  // Update rendered markdown whenever localContent changes.
   useEffect(() => {
-    Promise.resolve(marked(localContent)).then(html => setRenderedContent(html))
-  }, [localContent])
+    Promise.resolve(marked(localContent)).then((html) =>
+      setRenderedContent(html)
+    );
+  }, [localContent]);
 
-  // Listen for clicks outside this cell to stop editing.
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setEditing(false)
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setEditing(false);
       }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
+    };
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
-    }
-  }, [])
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   return (
     <div ref={containerRef} className="markdown-cell">
@@ -44,9 +47,9 @@ const MarkdownCell: React.FC<MarkdownCellProps> = ({ cell, updateCell }) => {
         <textarea
           value={localContent}
           onChange={(e) => {
-            const newContent = e.target.value
-            setLocalContent(newContent)
-            updateCell(cell.id, newContent)
+            const newContent = e.target.value;
+            setLocalContent(newContent);
+            updateCell(cell.id, newContent);
           }}
           onBlur={() => setEditing(false)}
           placeholder="Write Markdown/LaTeX here..."
@@ -59,7 +62,7 @@ const MarkdownCell: React.FC<MarkdownCellProps> = ({ cell, updateCell }) => {
         />
       )}
     </div>
-  )
-}
+  );
+};
 
-export default MarkdownCell
+export default MarkdownCell;
