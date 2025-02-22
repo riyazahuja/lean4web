@@ -1,5 +1,7 @@
+// CodeCell.tsx
 import React, { useEffect, useRef } from 'react';
 import * as monaco from 'monaco-editor';
+import { LeanMonacoEditor } from 'lean4monaco';
 import { CodeCellData } from './NotebookTypes';
 
 interface CodeCellProps {
@@ -18,65 +20,80 @@ const CodeCell: React.FC<CodeCellProps> = ({
   updateCell,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const editorInstanceRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const editorRef = useRef<LeanMonacoEditor | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || !sharedModel) return;
-    // Create an editor that uses the shared model.
-    const editor = monaco.editor.create(containerRef.current, {
-      model: sharedModel,
-      language: 'lean',
-      automaticLayout: true,
-      minimap: { enabled: false },
-    });
-    editorInstanceRef.current = editor;
-
-    // Calculate total lines from the model.
-    const totalLines = sharedModel.getLineCount();
-    // Assume cellData.startLine and cellData.endLine are 1-indexed.
-    const start = cellData.startLine;
-    const end = cellData.endLine;
-
-    // Create hidden ranges for lines outside the cell.
-    const hiddenRanges: monaco.IRange[] = [];
-    if (start > 1) {
-      hiddenRanges.push({
-        startLineNumber: 1,
-        startColumn: 1,
-        endLineNumber: start - 1,
-        endColumn: 1,
-      });
-    }
-    if (end < totalLines) {
-      hiddenRanges.push({
-        startLineNumber: end + 1,
-        startColumn: 1,
-        endLineNumber: totalLines,
-        endColumn: 1,
-      });
-    }
-
-    try {
-      // Cast to ICodeEditor so that setHiddenAreas is recognized.
-      (editor as any).setHiddenAreas(hiddenRanges);
-    } catch (error) {
-      console.error("Error setting hidden areas:", error);
-    }
+    const leanEditor = new LeanMonacoEditor();
+    editorRef.current = leanEditor;
+    (async () => {
+      // Start the editor. Typically, lean4monaco creates its own model,
+      // but we want to override it with our sharedModel.
+      await leanEditor.start(
+        containerRef.current!,
+        `/project/${project}.lean`,
+        sharedModel.getValue()
+      );
+      // Replace the model with our shared model.
+      const monacoEditor = leanEditor.editor;
+      if (monacoEditor) {
+        const oldModel = monacoEditor.getModel();
+        if (oldModel && oldModel !== sharedModel) {
+          oldModel.dispose();
+        }
+        monacoEditor.setModel(sharedModel);
+        
+        // Debug: log the total line count.
+        const totalLines = sharedModel.getLineCount();
+        console.log(`Cell ${cellData.id}: totalLines=${totalLines}`);
+        
+        // Calculate hidden ranges
+        const start = cellData.startLine;
+        const end = cellData.endLine;
+        const hiddenRanges: monaco.IRange[] = [];
+        if (start > 1) {
+          hiddenRanges.push({
+            startLineNumber: 1,
+            startColumn: 1,
+            endLineNumber: start - 1,
+            endColumn: 1,
+          });
+        }
+        if (end < totalLines) {
+          hiddenRanges.push({
+            startLineNumber: end + 1,
+            startColumn: 1,
+            endLineNumber: totalLines,
+            endColumn: 1,
+          });
+        }
+        console.log(`Cell ${cellData.id}: hiddenRanges=`, hiddenRanges);
+        // Use a cast to allow setHiddenAreas.
+        (monacoEditor as any).setHiddenAreas(hiddenRanges);
+        
+        // Reveal cell's range.
+        monacoEditor.revealLinesInCenter(start, end);
+        
+        // Listen for changes: extract only the visible portion.
+        monacoEditor.onDidChangeModelContent(() => {
+          const allLines = sharedModel.getValue().split('\n');
+          const cellLines = allLines.slice(start - 1, end);
+          updateCell(cellLines.join('\n'));
+        });
+      }
+    })();
     
-    // Scroll to the cell's range.
-    editor.revealLinesInCenter(start, end);
-
     return () => {
-      editor.dispose();
+      leanEditor.dispose();
     };
-  }, [containerRef, sharedModel, cellData]);
+  }, [containerRef, sharedModel, cellData, project, updateCell]);
 
   return (
     <div
       className="code-cell"
       style={{ height: '300px', border: '1px solid #ccc', marginBottom: '10px' }}
     >
-      <div ref={containerRef} style={{ height: '100%' }} onClick={() => {}} />
+      <div ref={containerRef} style={{ height: '100%' }} />
     </div>
   );
 };

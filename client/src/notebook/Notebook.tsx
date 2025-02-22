@@ -6,7 +6,7 @@ import MarkdownCell from './MarkdownCell';
 import { CodeCellData, Cell } from './NotebookTypes';
 
 const Notebook: React.FC = () => {
-  // Full underlying Lean file content.
+  // Full underlying Lean file content (5 lines)
   const [fullContent, setFullContent] = useState<string>(
 `-- Lean file example
 def add (a b : Nat) := a + b
@@ -15,10 +15,10 @@ def add (a b : Nat) := a + b
 -- End of file`
   );
 
-  // Hard-coded boundaries for demonstration.
+  // Define code cell boundaries. Note: Our file has 5 lines.
   const [codeCells, setCodeCells] = useState<CodeCellData[]>([
     { id: 'cell1', startLine: 1, endLine: 3 },
-    { id: 'cell2', startLine: 4, endLine: 6 },
+    { id: 'cell2', startLine: 4, endLine: 5 },
   ]);
 
   // Create a shared Monaco model (once) for the full file.
@@ -28,7 +28,6 @@ def add (a b : Nat) := a + b
       const model = monaco.editor.createModel(fullContent, 'lean');
       setSharedModel(model);
     } else {
-      // When fullContent updates, update the shared model.
       if (sharedModel.getValue() !== fullContent) {
         sharedModel.setValue(fullContent);
       }
@@ -43,13 +42,13 @@ def add (a b : Nat) := a + b
     if (cellIndex === -1 || !sharedModel) return;
     const cell = codeCells[cellIndex];
     const lines = fullContent.split('\n');
-    // Note: our line numbers here are 1-indexed.
+    // Lines are 1-indexed.
     const before = lines.slice(0, cell.startLine - 1);
     const after = lines.slice(cell.endLine);
     const newLines = newCellContent.split('\n');
     const updatedContent = [...before, ...newLines, ...after].join('\n');
     setFullContent(updatedContent);
-    // Adjust boundaries for this and subsequent cells.
+    // Adjust boundaries for this cell and shift subsequent cells.
     const diff = newLines.length - (cell.endLine - cell.startLine + 1);
     const updatedCells = [...codeCells];
     updatedCells[cellIndex] = { ...cell, endLine: cell.endLine + diff };
@@ -66,7 +65,6 @@ def add (a b : Nat) := a + b
   return (
     <div className="notebook">
       {codeCells.map(cell => {
-        // Extract the cell's preview from the fullContent.
         const lines = fullContent.split('\n');
         const preview = lines.slice(cell.startLine - 1, cell.endLine).join('\n');
         return (
@@ -81,7 +79,6 @@ def add (a b : Nat) := a + b
           </div>
         );
       })}
-      {/* Render a Markdown cell for demonstration */}
       <div className="cell">
         <MarkdownCell
           cell={{ id: 'md1', type: 'markdown', content: '# Markdown Example\nThis is a markdown cell.' }}
@@ -89,7 +86,7 @@ def add (a b : Nat) := a + b
         />
       </div>
       <div className="controls">
-        <button onClick={() => { /* Add new cell logic */ }}>Add Code Cell</button>
+        <button onClick={() => { /* Add new code cell logic */ }}>Add Code Cell</button>
         <button onClick={() => { /* Add new markdown cell logic */ }}>Add Markdown Cell</button>
       </div>
     </div>
